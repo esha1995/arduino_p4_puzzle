@@ -4,12 +4,13 @@ Uduino uduino("uduinoBoard"); // Declare and name your object
 
 // variables for two pixel rings
 #include <Adafruit_NeoPixel.h> // import rgb circle library thing
-int ring1Pin = 7;
+int ring1Pin = 7; // pin number for ring 
 int ring2Pin = 6;
 #define NUMPIXELS 20 // define max number of leds
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, ring1Pin, NEO_GRB + NEO_KHZ800); // create our circular as a object
-Adafruit_NeoPixel pixels2 = Adafruit_NeoPixel(NUMPIXELS, ring2Pin, NEO_GRB + NEO_KHZ800); // create our circular as a object
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, ring1Pin, NEO_GRB + NEO_KHZ800); // create our circular light as a object
+Adafruit_NeoPixel pixels2 = Adafruit_NeoPixel(NUMPIXELS, ring2Pin, NEO_GRB + NEO_KHZ800); // create our circular light as a object
 int pixelI = 10; // intensity of color which is changes by unity later 
+
 
 // variables 
 int index1 = 0;
@@ -39,9 +40,7 @@ int buttonState2 = 0;
 int oldButtonState1 = 0;
 int oldButtonState2 = 0;
 
-// Servo
-#include <Servo.h>
-#define MAXSERVOS 8
+
 
 void setup()
 {
@@ -65,100 +64,21 @@ void setup()
   pixels.begin();
   pixels2.begin();
 
-#if defined (__AVR_ATmega32U4__) // Leonardo
-  while (!Serial) {}
-#elif defined(__PIC32MX__)
-  delay(1000);
-#endif
 
   // commands added to uduino which can be called from Unity. The commands triggers the corresponding function in this arduino code. 
   uduino.addCommand("turnOn1", turnOnPixel1); 
   uduino.addCommand("turnOn2", turnOnPixel2);
   uduino.addCommand("changeIntensity", changeIntensity);
   
-  uduino.addCommand("s", SetMode);
-  uduino.addCommand("rd", ReadDigitalPin);
-  uduino.addInitFunction(DisconnectAllServos);
-  uduino.addDisconnectedFunction(DisconnectAllServos);
+
   
 }
 
-void ReadBundle() {
-  char *arg = NULL;
-  char *number = NULL;
-  number = uduino.next();
-  int len = 0;
-  if (number != NULL)
-    len = atoi(number);
-  for (int i = 0; i < len; i++) {
-    uduino.launchCommand(arg);
-  }
-}
-
-void SetMode() {
-  int pinToMap = 100; //100 is never reached
-  char *arg = NULL;
-  arg = uduino.next();
-  if (arg != NULL)
-  {
-    pinToMap = atoi(arg);
-  }
-  int type;
-  arg = uduino.next();
-  if (arg != NULL)
-  {
-    type = atoi(arg);
-    PinSetMode(pinToMap, type);
-  }
-}
-
-void PinSetMode(int pin, int type) {
-  //TODO : vérifier que ça, ça fonctionne
-  if (type != 4)
-    DisconnectServo(pin);
-
-  switch (type) {
-    case 0: // Output
-      pinMode(pin, OUTPUT);
-      break;
-    case 1: // PWM
-      pinMode(pin, OUTPUT);
-      break;
-    case 2: // Analog
-      pinMode(pin, INPUT);
-      break;
-    case 3: // Input_Pullup
-      pinMode(pin, INPUT_PULLUP);
-      break;
-    case 4: // Servo
-      SetupServo(pin);
-      break;
-  }
-}
-
-
-
-void ReadDigitalPin() {
-  int pinToRead = -1;
-  char *arg = NULL;
-  arg = uduino.next();
-  if (arg != NULL)
-  {
-    pinToRead = atoi(arg);
-  }
-
-  if (pinToRead != -1)
-    printValue(pinToRead, digitalRead(pinToRead));
-}
-
-
-
-Servo myservo;
 void loop()
 {
   uduino.update();
 
-  // lighting both of the LED rings depending on the index values. 
+  // reading the state of the buttons
   buttonState1 = digitalRead(button1);
   buttonState2 = digitalRead(button2);
   
@@ -209,74 +129,6 @@ void loop()
     }
 }
 
-void printValue(int pin, int targetValue) {
-  uduino.print(pin);
-  uduino.print(" "); //<- Todo : Change that with Uduino delimiter
-  uduino.println(targetValue);
-  // TODO : Here we could put bundle read multiple pins if(Bundle) { ... add delimiter // } ...
-}
-
-
-
-
-/* SERVO CODE */
-Servo servos[MAXSERVOS];
-int servoPinMap[MAXSERVOS];
-/*
-  void InitialdizeServos() {
-  for (int i = 0; i < MAXSERVOS - 1; i++ ) {
-    servoPinMap[i] = -1;
-    servos[i].detach();
-  }
-  }
-*/
-void SetupServo(int pin) {
-  if (ServoConnectedPin(pin))
-    return;
-
-  int nextIndex = GetAvailableIndexByPin(-1);
-  if (nextIndex == -1)
-    nextIndex = 0;
-  servos[nextIndex].attach(pin);
-  servoPinMap[nextIndex] = pin;
-}
-
-
-void DisconnectServo(int pin) {
-  servos[GetAvailableIndexByPin(pin)].detach();
-  servoPinMap[GetAvailableIndexByPin(pin)] = 0;
-}
-
-bool ServoConnectedPin(int pin) {
-  if (GetAvailableIndexByPin(pin) == -1) return false;
-  else return true;
-}
-
-int GetAvailableIndexByPin(int pin) {
-  for (int i = 0; i < MAXSERVOS - 1; i++ ) {
-    if (servoPinMap[i] == pin) {
-      return i;
-    } else if (pin == -1 && servoPinMap[i] < 0) {
-      return i; // return the first available index
-    }
-  }
-  return -1;
-}
-
-void UpdateServo(int pin, int targetValue) {
-  int index10 = GetAvailableIndexByPin(pin);
-  servos[index10].write(targetValue);
-  delay(10);
-}
-
-void DisconnectAllServos() {
-  for (int i = 0; i < MAXSERVOS; i++) {
-    servos[i].detach();
-    digitalWrite(servoPinMap[i], LOW);
-    servoPinMap[i] = -1;
-  }
-}
-
 // functions that takes an argument from unity when called. 
 void turnOnPixel1(){
   index1 = atoi(uduino.getParameter(0)); // index1 (int controlling number of pixels which should light up) becomes the first argument sent from unity when function is called
@@ -294,7 +146,7 @@ void changeIntensity(){
 
 
 
-
+// interrupt functions for all encoders: 
 void PinA(){
   cli(); //stop interrupts happening before we read pin values
   reading = PIND & 12; // read all eight pin values then strip away all but pinA and pinB's values
